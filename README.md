@@ -27,7 +27,7 @@ These tests use [pytest](https://pytest.org/) (not nose like Zappa) and have a d
   - functioning app code
   - a `requirements.txt` for the app to test (TODO: spec this out a little better, such as "don't include the Zappa version"; TODO: make this `requirements-py27.txt`, `requirements-py36.txt`)
   - TODO: *optionally*: a Cloudformation stack to invoke *before* tests on the zappa app, located in `zappa_cfn.json`, `zappa_cfn.yaml` or the standard output from `zappa_cfn.py` (as a [Troposphere](https://github.com/cloudtools/troposphere) based script). (TODO: not yet implemented)
-  - *optionally*: its own `tests/` to run against the app once it's up and running.
+  - TODO: *optionally*: its own `tests/` to run against the app once it's up and running.
 
 
 ## Running the tests:
