@@ -30,7 +30,7 @@ These tests use [pytest](https://pytest.org/) (not nose like Zappa) and have a d
   - *optionally*: its own `tests/` to run against the app once it's up and running.
 
 
-  ## Running the tests:
+## Running the tests:
 
   - run `py.test`
   - to get realtime output: `py.test --log-cli-level=debug`
