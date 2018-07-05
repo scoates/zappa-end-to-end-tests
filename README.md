@@ -2,7 +2,7 @@ This is a work in progress; not ready for use yet. PRs welcome. (-:
 
 # End-to-end testing for Zappa
 
-This directory contains end-to-end tests. This tests *actual* deployments of Zappa, within a real AWS account. Running these tests costs money (in AWS usage fees).
+This repository contains end-to-end tests. This tests *actual* deployments of Zappa, within a real AWS account. Running these tests costs money (in AWS usage fees).
 
 They are separate from the main Zappa repository `tests/` because of this cost, and also because they are fundamentally different from the unit/integration tests in `tests/`.
 
