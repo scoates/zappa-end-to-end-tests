@@ -1,16 +1,21 @@
 import pytest
 import os
-import shutil
+from distutils.dir_util import copy_tree
 from virtualenv import create_environment
 import logging
-
-
-from zappa_e2e import PreservableTemporaryDirectory, DeployedZappaApp, venv_cmd
+import sys
+import socket
+from jinja2 import Template
+from zappa_e2e import PreservableTemporaryDirectory, DeployedZappaApp, venv_cmd, chdir
 
 
 DIR = os.path.realpath(os.path.dirname(__file__))
 APPS_PREFIX = os.path.join(DIR, "apps")
 logger = logging.getLogger()
+
+ZAPPA_S3_BUCKET = os.environ.get('ZAPPA_S3_BUCKET', "zappa-e2e-" + socket.gethostname())
+logger.debug("Zappa E2E: using s3 bucket " + ZAPPA_S3_BUCKET)
+
 
 def _path_to_app(path):
     str_path = str(path)
@@ -51,25 +56,36 @@ class ZappaAppTest(pytest.Item):
 
     def runtest(self):
 
-        with PreservableTemporaryDirectory() as (app_tmp_dir, ptd):
+        with PreservableTemporaryDirectory(self.app_name) as (app_tmp_dir, ptd):
             self.app_test_dir = os.path.join(app_tmp_dir, self.app_name)
-            shutil.copytree(self.app_path, self.app_test_dir)
-            os.chdir(self.app_test_dir)
+            copy_tree(self.app_path, self.app_test_dir)
+            chdir(self.app_test_dir)
 
             self.venv_dir = os.path.join(app_tmp_dir, 'venv')
-            create_environment(self.venv_dir)
+            requirements_txt_path = os.path.join(self.app_test_dir, 'requirements.txt')
 
-            if os.path.isfile(os.path.join(self.app_test_dir, 'requirements.txt')):
-                ret, _, _ = self._venv_cmd('pip', ['install', '-r', 'requirements.txt'], check=True)
+            if not os.path.isdir(self.venv_dir):
+                create_environment(self.venv_dir)
 
-            with DeployedZappaApp(self.app_test_dir, self.venv_dir, ptd):
+            ret, _, _ = self._venv_cmd('pip', ['install', '-r', 'requirements.txt'], check=True)
+
+            template_file = os.path.join(self.app_test_dir, "zappa_settings.json.j2")
+            with open(template_file) as f:
+                template_source = f.read()
+
+            template = Template(template_source)
+            rendered_template = template.render(
+                ZAPPA_S3_BUCKET=ZAPPA_S3_BUCKET
+            )
+
+            settings_file = os.path.join(self.app_test_dir, "zappa_settings.json")
+            with open(settings_file, 'w') as zsj:
+                zsj.write(rendered_template)
+                logger.debug("Zappa E2E: wrote settings file {} from template {}".format(
+                    settings_file, template_file
+                ))
+
+            with DeployedZappaApp(self.app_test_dir, self.venv_dir, ptd) as zappa_app:
 
                 ret, status, _ = self._venv_cmd('zappa', ['status'], as_json=True)
                 assert ret == 0, "Got Zappa app status"
-
-                print(status)
-
-            # # always do this
-            # ret, _, _ = self._venv_cmd('zappa', ['undeploy', '-y'])
-            # assert ret == 0, "Zappa app successfully undeployed"
-

@@ -4,15 +4,65 @@ import logging
 import os
 import json
 import sys
+import weakref
 
 
 logger = logging.getLogger()
 
 
+def env_bool(var):
+    return os.environ.get("ZAPPA_E2E_" + var, False) in [1, '1', 'True', 'true', 'TRUE', True]
+
+
+ENV_CONFIG = {
+    # harnesses the test suite to only undeploy apps, if possible. Does not test. Main use here is to clean up after a catastrophic mess, if even possible.
+    'undeploy_only': env_bool("UNDEPLOY_ONLY"),
+
+    # if an app is deployed, update instead of deploy
+    'update_over_deploy': env_bool("UPDATE_OVER_DEPLOY"),
+
+    # do not undeploy apps
+    'no_undeploy': env_bool("NO_UNDEPLOY"),
+
+    # preserve temporary app dirs
+    'preserve_temp': env_bool("PRESERVE_TEMP"),
+}
+
+
 class PreservableTemporaryDirectory(tempfile.TemporaryDirectory):
 
-    def preserve(self):
+    def __init__(self, app_name):
+        """Preservable Temporary Directory
+
+        uses the system temp directory path plus a declarative subpath so we can do things like keep apps always in the same place"""
+        # borrowed most of this from https://github.com/python/cpython/blob/master/Lib/tempfile.py
+
+        main_tmp_dir = os.path.join(tempfile.gettempdir(), "zappa-e2e")
+        dir = os.path.join(main_tmp_dir, app_name)
+
+        try:
+            os.mkdir(main_tmp_dir)
+        except FileExistsError:
+            pass
+
+        try:
+            os.mkdir(dir)
+        except FileExistsError:
+            pass
+
+        self.name = dir
+        self._finalizer = weakref.finalize(
+            self, self._cleanup, self.name,
+            warn_message="Implicitly cleaning up {!r}".format(self))
+
         self._preserve = True
+
+        if ENV_CONFIG['preserve_temp']:
+            logger.info("Automatically preserving temp dir due to environment config")
+            self.preserve()
+
+
+    def preserve(self):
         self._finalizer.detach()
 
 
@@ -22,7 +72,6 @@ class PreservableTemporaryDirectory(tempfile.TemporaryDirectory):
 
 
     def __enter__(self):
-        self._preserve = False
         return self.name, self
 
 
@@ -90,22 +139,37 @@ class DeployedZappaApp:
 
 
     def __enter__(self):
-        os.chdir(self.app_dir)
-        ret, _, _ = venv_cmd(self.venv_dir, 'zappa', ['status'])
-        if ret != 1:
+        chdir(self.app_dir)
+        ret, out, _ = venv_cmd(self.venv_dir, 'zappa', ['status', '--json'])  # not using as_json because zappa status doesn't return json when it fails
+        pre_deploy_status_exists = (ret == 1)
+
+        if not pre_deploy_status_exists and not ENV_CONFIG['update_over_deploy']:
             logger.error("{}: Status succeeded before deploy. This probably means that the app is already deployed. Bailing.".format(
                 self.__class__.__name__
             ))
             self.skip_cleanup = True
-            return None
+            sys.exit(1)
 
-        ret, out, _ = venv_cmd(self.venv_dir, 'zappa', ['deploy', self.stage])
-        if ret != 0:
-            logger.error("{}: failed to deploy with message '{}'. Bailing.".format(
-                self.__class__.__name__, out
+        if not pre_deploy_status_exists and ENV_CONFIG['update_over_deploy']:
+            self.post_deploy_status = json.loads(out)
+            logger.info("{}: updating instead of deploying for {}".format(
+                self.__class__.__name__, self.name
             ))
-            self.skip_cleanup = True
-            return None
+            ret, out, err = venv_cmd(self.venv_dir, 'zappa', ['update', self.stage])
+            if ret != 0:
+                logger.error("{}: failed to update with message '{}'. Bailing. stderr={}".format(
+                    self.__class__.__name__, out, err
+                ))
+                return None
+
+        else:
+            ret, out, err = venv_cmd(self.venv_dir, 'zappa', ['deploy', self.stage])
+            if ret != 0:
+                logger.error("{}: failed to deploy with message '{}'. Bailing. stderr={}".format(
+                    self.__class__.__name__, out, err
+                ))
+                self.skip_cleanup = True
+                return None
 
         ret, out, _ = venv_cmd(self.venv_dir, 'zappa', ['status', self.stage], as_json=True)
         if ret != 0:
@@ -116,11 +180,11 @@ class DeployedZappaApp:
             return None
 
         self.post_deploy_status = out
-        logger.info("{}: zappa app {}:{} deployed.".format(
-            self.__class__.__name__, self.name, self.stage
+        logger.info("{}: zappa app {} published.".format(
+            self.__class__.__name__, self.name
         ))
 
-        return self.name
+        return self.post_deploy_status
 
 
     def __exit__(self, exc, value, tb):
@@ -149,20 +213,23 @@ class DeployedZappaApp:
             if self.failed:
                 self._preserve_and_fail("Failed before cleanup.")
             else:
-                os.chdir(self.app_dir)
-                ret, out, err = venv_cmd(self.venv_dir, 'zappa', ['undeploy', '-y', self.stage])
-                if ret == 0:
-                    ret, out, _ = venv_cmd(self.venv_dir, 'zappa', ['status'])
-                    if ret != 1:
-                        self._preserve_and_fail("Zappa status should have returned 1. Returned {}. With output: {}".format(
-                            ret, out
-                        ))
-
+                if ENV_CONFIG['no_undeploy']:
+                    logger.info("Not undeploying {} due to environment config".format(self.name))
                 else:
-                    self._preserve_and_fail("Could not undeploy")
-                    logger.error("{}: Zappa failed to undeploy.\nstderr={}\nstdout={}".format(
-                        self.__class__.__name__, err, out
-                    ))
+                    os.chdir(self.app_dir)
+                    ret, out, err = venv_cmd(self.venv_dir, 'zappa', ['undeploy', '-y', self.stage])
+                    if ret == 0:
+                        ret, out, _ = venv_cmd(self.venv_dir, 'zappa', ['status'])
+                        if ret != 1:
+                            self._preserve_and_fail("Zappa status should have returned 1. Returned {}. With output: {}".format(
+                                ret, out
+                            ))
+
+                    else:
+                        self._preserve_and_fail("Could not undeploy")
+                        logger.error("{}: Zappa failed to undeploy.\nstderr={}\nstdout={}".format(
+                            self.__class__.__name__, err, out
+                        ))
 
             if self.failed:
                 sys.exit(1)
@@ -174,8 +241,24 @@ def venv_cmd(venv_dir, cmd, params, as_json=False, check=False):
     if as_json:
         args.append('--json')
     logger.debug("Calling '{}'".format(" ".join(args)))
-    cmd = subprocess.run(args, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    env = os.environ
+    prefix = 'VIRTUAL_ENV="'
+    with open(os.path.join(venv_dir, 'bin', 'activate')) as f:
+        l = f.readline()
+        while (l):
+            if l.startswith(prefix):
+                env['VIRTUAL_ENV'] = l[len(prefix):-2]
+                break
+            l = f.readline()
+
+    cmd = subprocess.run(args, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     if as_json:
-        return cmd.returncode, json.loads(cmd.stdout), cmd
+        return cmd.returncode, json.loads(cmd.stdout), cmd.stderr
     else:
-        return cmd.returncode, cmd.stdout, cmd
+        return cmd.returncode, cmd.stdout, cmd.stderr
+
+
+def chdir(wd):
+    logger.debug("Changing os directory to {}".format(wd))
+    os.chdir(wd)
