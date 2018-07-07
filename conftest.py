@@ -5,6 +5,7 @@ from virtualenv import create_environment
 import logging
 import sys
 import socket
+import hashlib
 from jinja2 import Template
 from zappa_e2e import PreservableTemporaryDirectory, DeployedZappaApp, venv_cmd, chdir
 
@@ -13,7 +14,7 @@ DIR = os.path.realpath(os.path.dirname(__file__))
 APPS_PREFIX = os.path.join(DIR, "apps")
 logger = logging.getLogger()
 
-ZAPPA_S3_BUCKET = os.environ.get('ZAPPA_S3_BUCKET', "zappa-e2e-" + socket.gethostname())
+ZAPPA_S3_BUCKET = os.environ.get('ZAPPA_S3_BUCKET', "zappa-e2e-" + str(hashlib.md5(socket.gethostname().encode()).hexdigest()))
 logger.debug("Zappa E2E: using s3 bucket " + ZAPPA_S3_BUCKET)
 
 
