@@ -7,7 +7,7 @@ import sys
 import socket
 import hashlib
 from jinja2 import Template
-from zappa_e2e import PreservableTemporaryDirectory, DeployedZappaApp, venv_cmd, chdir
+from zappa_e2e import PreservableTemporaryDirectory, DeployedZappaApp, venv_cmd, chdir, ENV_CONFIG
 
 
 DIR = os.path.realpath(os.path.dirname(__file__))
@@ -88,5 +88,8 @@ class ZappaAppTest(pytest.Item):
 
             with DeployedZappaApp(self.app_test_dir, self.venv_dir, ptd) as zappa_app:
 
-                ret, status, _ = self._venv_cmd('zappa', ['status'], as_json=True)
-                assert ret == 0, "Got Zappa app status"
+                # undeployed handled in DeployedZappaApp
+                if not ENV_CONFIG['undeploy_only']:
+
+                    ret, status, _ = self._venv_cmd('zappa', ['status'], as_json=True)
+                    assert ret == 0, "Got Zappa app status"

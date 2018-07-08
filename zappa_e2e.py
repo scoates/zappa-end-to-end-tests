@@ -143,15 +143,22 @@ class DeployedZappaApp:
         ret, out, _ = venv_cmd(self.venv_dir, 'zappa', ['status', '--json'])  # not using as_json because zappa status doesn't return json when it fails
         pre_deploy_status_exists = (ret == 1)
 
-        if not pre_deploy_status_exists and not ENV_CONFIG['update_over_deploy']:
+        if not pre_deploy_status_exists and not (ENV_CONFIG['update_over_deploy'] or ENV_CONFIG['undeploy_only']):
             logger.error("{}: Status succeeded before deploy. This probably means that the app is already deployed. Bailing.".format(
                 self.__class__.__name__
             ))
             self.skip_cleanup = True
             sys.exit(1)
 
-        if not pre_deploy_status_exists and ENV_CONFIG['update_over_deploy']:
+        elif not pre_deploy_status_exists:
             self.post_deploy_status = json.loads(out)
+
+        if ENV_CONFIG['undeploy_only']:
+            # exit early
+            logger.info("{}: doing undeploy only".format(self.__class__.__name__))
+            return self.name
+
+        if not pre_deploy_status_exists and ENV_CONFIG['update_over_deploy']:
             logger.info("{}: updating instead of deploying for {}".format(
                 self.__class__.__name__, self.name
             ))
@@ -218,7 +225,7 @@ class DeployedZappaApp:
                 else:
                     os.chdir(self.app_dir)
                     ret, out, err = venv_cmd(self.venv_dir, 'zappa', ['undeploy', '-y', self.stage])
-                    if ret == 0:
+                    if ret == 0 or ENV_CONFIG['undeploy_only']:
                         ret, out, _ = venv_cmd(self.venv_dir, 'zappa', ['status'])
                         if ret != 1:
                             self._preserve_and_fail("Zappa status should have returned 1. Returned {}. With output: {}".format(
