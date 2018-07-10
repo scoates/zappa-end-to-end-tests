@@ -22,7 +22,7 @@ These tests use [pytest](https://pytest.org/) (not nose like Zappa) and have a d
 
 - each subdirectory within `apps/` will contain a "full" Zappa app, and the end-to-end tests will test these actual apps
 - each subdirectory should be named for the Zappa issue number this test is verifying. If no issue exists, use a simple but descriptive name such as `vpc`
-- whenver possible, reuse une of the generic test apps instead of adding a new app. New app creation is slow. For example: if you want to test an input string, but not a different Zappa configuration, maybe the `hello-world` app could do what you want.
+- whenever possible, reuse une of the generic test apps instead of adding a new app. New app creation is slow. For example: if you want to test an input string, but not a different Zappa configuration, maybe the `hello-world` app could do what you want.
 - Each app should contain some or all of the following:
   - `zappa_settings.json.tpl` a Jinja2 template that will be populated by the test suite (TODO: spec this out; TODO: spec stages if we implement multiple; TODO: actually do jinja)
   - functioning app code
