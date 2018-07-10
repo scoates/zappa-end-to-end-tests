@@ -1,15 +1,17 @@
 import pytest
 import os
 from distutils.dir_util import copy_tree
-from virtualenv import create_environment
 import logging
 import sys
 import socket
 import hashlib
 from jinja2 import Template
-from zappa_e2e import PreservableTemporaryDirectory, DeployedZappaApp, venv_cmd, chdir, ENV_CONFIG
+from zappa_e2e import PreservableTemporaryDirectory, DeployedZappaApp, venv_cmd, chdir, ENV_CONFIG, python_executables
+import subprocess
+import time
 
 
+SLEEP_BETWEEN = 30
 DIR = os.path.realpath(os.path.dirname(__file__))
 APPS_PREFIX = os.path.join(DIR, "apps")
 logger = logging.getLogger()
@@ -57,39 +59,52 @@ class ZappaAppTest(pytest.Item):
 
     def runtest(self):
 
-        with PreservableTemporaryDirectory(self.app_name) as (app_tmp_dir, ptd):
-            self.app_test_dir = os.path.join(app_tmp_dir, self.app_name)
-            copy_tree(self.app_path, self.app_test_dir)
-            chdir(self.app_test_dir)
+        for py_version, py_executable in python_executables().items():
+            if py_executable is None:
+                logger.warn("Could not find a python {} executable.".format(py_version))
+                continue
 
-            self.venv_dir = os.path.join(app_tmp_dir, 'venv')
-            requirements_txt_path = os.path.join(self.app_test_dir, 'requirements.txt')
+            logger.info("Entering app {} with Python {}".format(self.app_name, py_version))
+            with PreservableTemporaryDirectory(self.app_name, 'py' + py_version) as (app_tmp_dir, ptd):
+                self.app_test_dir = os.path.join(app_tmp_dir, "{}-py{}".format(self.app_name, py_version))
+                copy_tree(self.app_path, self.app_test_dir)
+                chdir(self.app_test_dir)
 
-            if not os.path.isdir(self.venv_dir):
-                create_environment(self.venv_dir)
+                self.venv_dir = os.path.join(app_tmp_dir, 'venv')
+                requirements_txt_path = os.path.join(self.app_test_dir, 'requirements.txt')
 
-            ret, _, _ = self._venv_cmd('pip', ['install', '-r', 'requirements.txt'], check=True)
+                if not os.path.isdir(self.venv_dir):
+                    cmd = subprocess.run(['virtualenv', '-p', py_executable, self.venv_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    if cmd.returncode != 0:
+                        print(cmd.returncode, cmd.stdout, cmd.stderr)
+                        raise EnvironmentError("Could not create virtualenv for py {}".format(py_version))
 
-            template_file = os.path.join(self.app_test_dir, "zappa_settings.json.j2")
-            with open(template_file) as f:
-                template_source = f.read()
+                ret, _, _ = self._venv_cmd('pip', ['install', '-r', 'requirements.txt'], check=True)
 
-            template = Template(template_source)
-            rendered_template = template.render(
-                ZAPPA_S3_BUCKET=ZAPPA_S3_BUCKET
-            )
+                template_file = os.path.join(self.app_test_dir, "zappa_settings.json.j2")
+                with open(template_file) as f:
+                    template_source = f.read()
 
-            settings_file = os.path.join(self.app_test_dir, "zappa_settings.json")
-            with open(settings_file, 'w') as zsj:
-                zsj.write(rendered_template)
-                logger.debug("Zappa E2E: wrote settings file {} from template {}".format(
-                    settings_file, template_file
-                ))
+                template = Template(template_source)
+                rendered_template = template.render(
+                    S3_BUCKET=ZAPPA_S3_BUCKET,
+                    E2E_VERSION=py_version
+                )
 
-            with DeployedZappaApp(self.app_test_dir, self.venv_dir, ptd) as zappa_app:
+                settings_file = os.path.join(self.app_test_dir, "zappa_settings.json")
+                with open(settings_file, 'w') as zsj:
+                    zsj.write(rendered_template)
+                    logger.debug("Zappa E2E: wrote settings file {} from template {}".format(
+                        settings_file, template_file
+                    ))
 
-                # undeployed handled in DeployedZappaApp
-                if not ENV_CONFIG['undeploy_only']:
+                with DeployedZappaApp(self.app_test_dir, self.venv_dir, ptd) as zappa_app:
 
-                    ret, status, _ = self._venv_cmd('zappa', ['status'], as_json=True)
-                    assert ret == 0, "Got Zappa app status"
+                    # undeployed handled in DeployedZappaApp
+                    if not ENV_CONFIG['undeploy_only']:
+
+                        ret, status, _ = self._venv_cmd('zappa', ['status'], as_json=True)
+                        assert ret == 0, "Got Zappa app status"
+
+            logger.info("Sleeping for {}s to help with the AWS rate limit.".format(SLEEP_BETWEEN))
+            time.sleep(SLEEP_BETWEEN)

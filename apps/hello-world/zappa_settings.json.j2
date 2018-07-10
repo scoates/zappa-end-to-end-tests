@@ -1,6 +1,8 @@
 {
     "test": {
-        "s3_bucket": "{{ZAPPA_S3_BUCKET}}",
+        "s3_bucket": "{{S3_BUCKET}}",
         "app_function": "app.app",
+        "runtime": "python{{E2E_VERSION}}",
+        "project_name": "hello-world-{{E2E_VERSION.replace('.', '')}}",
     }
 }

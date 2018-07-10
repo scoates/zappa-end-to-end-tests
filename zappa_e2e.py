@@ -5,6 +5,8 @@ import os
 import json
 import sys
 import weakref
+from distutils.spawn import find_executable
+from distutils.errors import DistutilsExecError
 
 
 logger = logging.getLogger()
@@ -26,22 +28,35 @@ ENV_CONFIG = {
 
     # preserve temporary app dirs
     'preserve_temp': env_bool("PRESERVE_TEMP"),
+
+    # python versions
+    'skip_python_27': env_bool('SKIP_PYTHON_27'),
+    'skip_python_36': env_bool('SKIP_PYTHON_36'),
+
+    'python_27_path': env_bool('PYTHON_27_PATH'),
+    'python_36_path': env_bool('PYTHON_36_PATH'),
 }
 
 
 class PreservableTemporaryDirectory(tempfile.TemporaryDirectory):
 
-    def __init__(self, app_name):
+    def __init__(self, app_name, version):
         """Preservable Temporary Directory
 
         uses the system temp directory path plus a declarative subpath so we can do things like keep apps always in the same place"""
         # borrowed most of this from https://github.com/python/cpython/blob/master/Lib/tempfile.py
 
         main_tmp_dir = os.path.join(tempfile.gettempdir(), "zappa-e2e")
-        dir = os.path.join(main_tmp_dir, app_name)
+        version_dir = os.path.join(main_tmp_dir, version)
+        dir = os.path.join(version_dir, app_name)
 
         try:
             os.mkdir(main_tmp_dir)
+        except FileExistsError:
+            pass
+
+        try:
+            os.mkdir(version_dir)
         except FileExistsError:
             pass
 
@@ -151,7 +166,10 @@ class DeployedZappaApp:
             sys.exit(1)
 
         elif not pre_deploy_status_exists:
-            self.post_deploy_status = json.loads(out)
+            try:
+                self.post_deploy_status = json.loads(out)
+            except json.decoder.JSONDecodeError:
+                pass
 
         if ENV_CONFIG['undeploy_only']:
             # exit early
@@ -259,6 +277,7 @@ def venv_cmd(venv_dir, cmd, params, as_json=False, check=False):
                 break
             l = f.readline()
 
+    #logger.debug("venv_cmd: calling {} with env {}".format(args, env))
     cmd = subprocess.run(args, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     if as_json:
         return cmd.returncode, json.loads(cmd.stdout), cmd.stderr
@@ -269,3 +288,58 @@ def venv_cmd(venv_dir, cmd, params, as_json=False, check=False):
 def chdir(wd):
     logger.debug("Changing os directory to {}".format(wd))
     os.chdir(wd)
+
+
+def _try_run_python(name):
+    out = ""
+    cmd = find_executable(name)
+    if cmd:
+        try:
+            run = subprocess.run([cmd, '-V'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            if run:
+                out = run.stdout.decode()
+        except DistutilsExecError:
+            pass
+    return out, cmd
+
+
+def python_executables():
+
+    found = {
+        '2.7': None,
+        '3.6': None,
+    }
+
+    if ENV_CONFIG['python_27_path']:
+        out, cmd = _try_run_python(ENV_CONFIG['python_27_path'])
+        if out.startswith('Python 2.7'):
+            found['2.7'] = ENV_CONFIG['python_27_path']
+        else:
+            raise EnvironmentError('Python 2.7 path specified, but is not actually a Python 2.7 executable.')
+
+    if ENV_CONFIG['python_36_path']:
+        out, cmd = _try_run_python(ENV_CONFIG['python_36_path'])
+        if out.startswith('Python 3.6'):
+            found['3.6'] = ENV_CONFIG['python_36_path']
+        else:
+            raise EnvironmentError('Python 3.6 path specified, but is not actually a Python 3.6 executable.')
+
+    if not found['2.7'] or not found['3.6']:
+        # try plain `python` first
+        out, cmd = _try_run_python('python')
+        if not found['2.7'] and out and out.startswith('Python 2.7'):
+            found['2.7'] = cmd
+        elif not found['3.6'] and out and out.startswith('Python 3.6'):
+            found['3.6'] = cmd
+
+    if not found['2.7'] and out and (found['2.7'] is None):
+        out, cmd = _try_run_python('python2')
+        if out.startswith('Python 2.7'):
+            found['2.7'] = cmd
+
+    if not found['3.6'] and out and found['3.6'] is None:
+        out, cmd = _try_run_python('python3')
+        if out.startswith('Python 3.6'):
+            found['3.6'] = cmd
+
+    return found
