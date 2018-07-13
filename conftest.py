@@ -122,7 +122,9 @@ class ZappaAppTest(pytest.Item):
                         ret, status, _ = self._venv_cmd('zappa', ['status'], as_json=True)
                         assert ret == 0, "Got Zappa app status"
 
-                        env_status = {}
+                        env_status = {
+                            'PY_VERSION': py_version,
+                        }
                         for k, v in status.items():
                             if type(v) == str:
                                 env_status[k.upper().replace(' ', '_')] = v
@@ -135,4 +137,4 @@ class ZappaAppTest(pytest.Item):
                                 logger.info(out)
                                 logger.info("stderr:")
                                 logger.info(err)
-                            assert ret == 0, "run_tests success"
+                            assert ret == 0 or ret == 5, "run_tests success (or no tests)"

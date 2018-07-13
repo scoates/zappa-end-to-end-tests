@@ -6,4 +6,6 @@ set -e
 
 . ../venv/bin/activate
 pip freeze | grep pytest || pip install pytest
-py.test -s
+
+set -x
+py.test -o "python_files=test_${PY_VERSION}_*.py test_BOTH_*.py" -s

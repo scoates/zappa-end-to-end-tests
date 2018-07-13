@@ -1,18 +1,14 @@
 import os
-try:
-    import http.client
-    from urllib.parse import urlparse
+import http.client
+from urllib.parse import urlparse
 
-    def test_https():
-        API_GATEWAY_URL = os.environ.get('API_GATEWAY_URL')
-        assert API_GATEWAY_URL, "We have an API Gateway URL"
+def test_https():
+    API_GATEWAY_URL = os.environ.get('API_GATEWAY_URL')
+    assert API_GATEWAY_URL, "We have an API Gateway URL"
 
-        url = urlparse(API_GATEWAY_URL)
+    url = urlparse(API_GATEWAY_URL)
 
-        hc = http.client.HTTPSConnection(url.netloc)
-        hc.request("GET", url.path)
-        res = hc.getresponse()
-        assert res.status == 200, "API returns 200 on /"
-except ImportError:
-    def test_https():
-        assert True, "Skipping tests for py2"
+    hc = http.client.HTTPSConnection(url.netloc)
+    hc.request("GET", url.path)
+    res = hc.getresponse()
+    assert res.status == 200, "API returns 200 on /"
