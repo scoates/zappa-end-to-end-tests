@@ -1,0 +1,9 @@
+#!/bin/bash
+
+# we'd normally do any dependency stuff here
+
+set -e
+
+. ../venv/bin/activate
+pip freeze | grep pytest || pip install pytest
+py.test -s

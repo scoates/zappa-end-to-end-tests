@@ -19,7 +19,6 @@ logger = logging.getLogger()
 ZAPPA_S3_BUCKET = os.environ.get('ZAPPA_S3_BUCKET', "zappa-e2e-" + str(hashlib.md5(socket.gethostname().encode()).hexdigest()))
 logger.debug("Zappa E2E: using s3 bucket " + ZAPPA_S3_BUCKET)
 
-
 def _path_to_app(path):
     str_path = str(path)
     if str_path.startswith(APPS_PREFIX):
@@ -47,19 +46,28 @@ class ZappaAppFile(pytest.File):
 
 
 class ZappaAppTest(pytest.Item):
+    first_run = True
+
     def __init__(self, name, parent):
         super(ZappaAppTest, self).__init__(name, parent)
         self.app_name = parent.app_name
         self.app_path = parent.app_path
 
 
-    def _venv_cmd(self, cmd, params, as_json=False, check=False):
-        return venv_cmd(self.venv_dir, cmd, params, as_json, check)
+    def _venv_cmd(self, cmd, params=[], as_json=False, check=False, extra_env={}):
+        return venv_cmd(self.venv_dir, cmd, params, as_json, check, extra_env)
 
 
     def runtest(self):
 
         for py_version, py_executable in python_executables().items():
+
+            if self.__class__.first_run:
+                self.__class__.first_run = False
+            else:
+                logger.info("Sleeping for {}s to help with the AWS rate limit.".format(SLEEP_BETWEEN))
+                time.sleep(SLEEP_BETWEEN)
+
             if py_executable is None:
                 logger.warn("Could not find a python {} executable.".format(py_version))
                 continue
@@ -71,7 +79,15 @@ class ZappaAppTest(pytest.Item):
                 chdir(self.app_test_dir)
 
                 self.venv_dir = os.path.join(app_tmp_dir, 'venv')
-                requirements_txt_path = os.path.join(self.app_test_dir, 'requirements.txt')
+
+                req_path = os.path.join(self.app_test_dir, 'requirements.txt')
+                if os.path.isfile(req_path):
+                    requirements_txt_path = req_path
+
+                alt_req_path = os.path.join(self.app_test_dir, 'requirements-py{}.txt'.format(py_version.replace('.', '')))
+                if os.path.isfile(alt_req_path):
+                    # override:
+                    requirements_txt_path = alt_req_path
 
                 if not os.path.isdir(self.venv_dir):
                     cmd = subprocess.run(['virtualenv', '-p', py_executable, self.venv_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -106,5 +122,17 @@ class ZappaAppTest(pytest.Item):
                         ret, status, _ = self._venv_cmd('zappa', ['status'], as_json=True)
                         assert ret == 0, "Got Zappa app status"
 
-            logger.info("Sleeping for {}s to help with the AWS rate limit.".format(SLEEP_BETWEEN))
-            time.sleep(SLEEP_BETWEEN)
+                        env_status = {}
+                        for k, v in status.items():
+                            if type(v) == str:
+                                env_status[k.upper().replace(' ', '_')] = v
+
+                        run_tests = os.path.join(self.app_test_dir, 'run_tests')
+                        if os.path.isfile(run_tests):
+                            ret, out, err = self._venv_cmd(run_tests, extra_env=env_status)
+                            if ret != 0:
+                                logger.info("stdout:")
+                                logger.info(out)
+                                logger.info("stderr:")
+                                logger.info(err)
+                            assert ret == 0, "run_tests success"

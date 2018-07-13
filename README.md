@@ -26,7 +26,7 @@ These tests use [pytest](https://pytest.org/) (not nose like Zappa) and have a d
 - Each app should contain some or all of the following:
   - `zappa_settings.json.j2` a Jinja2 template that will be populated by the test suite (TODO: spec this out; TODO: spec stages if we implement multiple; TODO: actually do jinja)
   - functioning app code
-  - a `requirements.txt` for the app to test (TODO: spec this out a little better, such as "don't include the Zappa version"; TODO: make this `requirements-py27.txt`, `requirements-py36.txt`)
+  - a `requirements.txt` for the app to test, or better: a `requirements-py27.txt' and `requirements-py36.txt' for Python 2.7 and 3.6, respectively (TODO: spec this out a little better, such as "don't include the Zappa version")
   - TODO: *optionally*: a Cloudformation stack to invoke *before* tests on the zappa app, located in `zappa_cfn.json`, `zappa_cfn.yaml` or the standard output from `zappa_cfn.py` (as a [Troposphere](https://github.com/cloudtools/troposphere) based script). (TODO: not yet implemented)
   - TODO: *optionally*: its own `tests/` to run against the app once it's up and running.
 

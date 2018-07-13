@@ -7,6 +7,7 @@ import sys
 import weakref
 from distutils.spawn import find_executable
 from distutils.errors import DistutilsExecError
+from copy import copy
 
 
 logger = logging.getLogger()
@@ -260,14 +261,16 @@ class DeployedZappaApp:
                 sys.exit(1)
 
 
-def venv_cmd(venv_dir, cmd, params, as_json=False, check=False):
+def venv_cmd(venv_dir, cmd, params=[], as_json=False, check=False, extra_env={}):
     args = [os.path.join(venv_dir, 'bin', cmd)]
     args.extend(params)
     if as_json:
         args.append('--json')
     logger.debug("Calling '{}'".format(" ".join(args)))
 
-    env = os.environ
+    env = copy(os.environ)
+    env.update(extra_env)
+
     prefix = 'VIRTUAL_ENV="'
     with open(os.path.join(venv_dir, 'bin', 'activate')) as f:
         l = f.readline()
@@ -280,9 +283,12 @@ def venv_cmd(venv_dir, cmd, params, as_json=False, check=False):
     #logger.debug("venv_cmd: calling {} with env {}".format(args, env))
     cmd = subprocess.run(args, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     if as_json:
-        return cmd.returncode, json.loads(cmd.stdout), cmd.stderr
-    else:
-        return cmd.returncode, cmd.stdout, cmd.stderr
+        try:
+            return cmd.returncode, json.loads(cmd.stdout), cmd.stderr
+        except json.decoder.JSONDecodeError:
+            pass  # returns below
+
+    return cmd.returncode, cmd.stdout, cmd.stderr
 
 
 def chdir(wd):
