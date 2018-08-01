@@ -8,4 +8,5 @@ set -e
 pip freeze | grep pytest || pip install pytest
 
 set -x
-py.test -o "python_files=test_${PY_VERSION}_*.py test_BOTH_*.py" -s
+py.test tests_${PY_VERSION}/ tests/
+

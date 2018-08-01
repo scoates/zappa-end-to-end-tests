@@ -160,7 +160,7 @@ class ZappaAppTest(pytest.Item):
                         )
                         assert ret == 0, "Got Zappa app status"
 
-                        env_status = {"PY_VERSION": py_version}
+                        env_status = {"PY_VERSION": py_version.replace(".", "")}
                         for k, v in status.items():
                             if type(v) == str:
                                 env_status[k.upper().replace(" ", "_")] = v
