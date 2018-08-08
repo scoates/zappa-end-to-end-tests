@@ -38,6 +38,9 @@ ENV_CONFIG = {
     "skip_python_36": env_bool("SKIP_PYTHON_36"),
     "python_27_path": env_bool("PYTHON_27_PATH"),
     "python_36_path": env_bool("PYTHON_36_PATH"),
+
+    # override Zappa?
+    "zappa_override": os.environ.get("ZAPPA_OVERRIDE"),
 }
 
 
@@ -377,5 +380,10 @@ def python_executables():
         out, cmd = _try_run_python("python3")
         if out.startswith("Python 3.6"):
             found["3.6"] = cmd
+
+    if ENV_CONFIG['skip_python_27']:
+        del found["2.7"]
+    if ENV_CONFIG['skip_python_36']:
+        del found["3.6"]
 
     return found
