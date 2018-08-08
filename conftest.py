@@ -71,6 +71,10 @@ class ZappaAppTest(pytest.Item):
 
         for py_version, py_executable in python_executables().items():
 
+            if py_executable is None:
+                logger.warn("Could not find a python {} executable.".format(py_version))
+                continue
+
             if self.__class__.first_run:
                 self.__class__.first_run = False
             else:
@@ -80,10 +84,6 @@ class ZappaAppTest(pytest.Item):
                     )
                 )
                 time.sleep(SLEEP_BETWEEN)
-
-            if py_executable is None:
-                logger.warn("Could not find a python {} executable.".format(py_version))
-                continue
 
             logger.info(
                 "Entering app {} with Python {}".format(self.app_name, py_version)
