@@ -43,7 +43,7 @@ ENV_CONFIG = {
     "zappa_override": os.environ.get("ZAPPA_E2E_ZAPPA_OVERRIDE"),
 
     # sleep between deployments (helps with AWS API limits; might not be necessary since they raised these)
-    "sleep_between": int(os.environ.get("ZAPPA_E2E_SLEEP_BETWEEN")),
+    "sleep_between": int(os.environ.get("ZAPPA_E2E_SLEEP_BETWEEN", 0)),
 }
 
 
