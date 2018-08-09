@@ -40,7 +40,10 @@ ENV_CONFIG = {
     "python_36_path": env_bool("PYTHON_36_PATH"),
 
     # override Zappa?
-    "zappa_override": os.environ.get("ZAPPA_OVERRIDE"),
+    "zappa_override": os.environ.get("ZAPPA_E2E_ZAPPA_OVERRIDE"),
+
+    # sleep between deployments (helps with AWS API limits; might not be necessary since they raised these)
+    "sleep_between": os.environ.get("ZAPPA_E2E_SLEEP_BETWEEN"),
 }
 
 
@@ -193,20 +196,28 @@ class DeployedZappaApp:
             ret, out, err = venv_cmd(self.venv_dir, "zappa", ["update", self.stage])
             if ret != 0:
                 logger.error(
-                    "{}: failed to update with message '{}'. Bailing. stderr={}".format(
-                        self.__class__.__name__, out, err
+                    "{}: failed to update. Bailing.".format(
+                        self.__class__.__name__
                     )
                 )
+                logger.info("stdout=")
+                [logger.info(l) for l in out.decode().split("\n") if l != ""]
+                logger.info("stderr=")
+                [logger.info(l) for l in err.decode().split("\n") if l != ""]
                 return None
 
         else:
             ret, out, err = venv_cmd(self.venv_dir, "zappa", ["deploy", self.stage])
             if ret != 0:
                 logger.error(
-                    "{}: failed to deploy with message '{}'. Bailing. stderr={}".format(
-                        self.__class__.__name__, out, err
+                    "{}: failed to deploy. Bailing.".format(
+                        self.__class__.__name__
                     )
                 )
+                logger.info("stdout=")
+                [logger.info(l) for l in out.decode().split("\n") if l != ""]
+                logger.info("stderr=")
+                [logger.info(l) for l in err.decode().split("\n") if l != ""]
                 self.skip_cleanup = True
                 return None
 

@@ -18,7 +18,6 @@ import subprocess
 import time
 
 
-SLEEP_BETWEEN = 30
 DIR = os.path.realpath(os.path.dirname(__file__))
 APPS_PREFIX = os.path.join(DIR, "apps")
 logger = logging.getLogger()
@@ -75,15 +74,16 @@ class ZappaAppTest(pytest.Item):
                 logger.warn("Could not find a python {} executable.".format(py_version))
                 continue
 
-            if self.__class__.first_run:
-                self.__class__.first_run = False
-            else:
-                logger.info(
-                    "Sleeping for {}s to help with the AWS rate limit.".format(
-                        SLEEP_BETWEEN
+            if ENV_CONFIG['sleep_between']:
+                if self.__class__.first_run:
+                    self.__class__.first_run = False
+                else:
+                    logger.info(
+                        "Sleeping for {}s to help with the AWS rate limit.".format(
+                            ENV_CONFIG['sleep_between']
+                        )
                     )
-                )
-                time.sleep(SLEEP_BETWEEN)
+                    time.sleep(ENV_CONFIG['sleep_between'])
 
             logger.info(
                 "Entering app {} with Python {}".format(self.app_name, py_version)
@@ -181,9 +181,9 @@ class ZappaAppTest(pytest.Item):
                                 logger.info("Tests ran successfully!")
                             else:
                                 logger.info("stdout:")
-                                logger.info(out)
+                                [logger.info(l) for l in out.decode().split("\n") if l != ""]
                                 logger.info("stderr:")
-                                logger.info(err)
+                                [logger.info(l) for l in err.decode().split("\n") if l != ""]
                             assert (
                                 ret == 0 or ret == 5
                             ), "run_tests success (or no tests)"
