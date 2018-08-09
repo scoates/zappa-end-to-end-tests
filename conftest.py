@@ -128,11 +128,14 @@ class ZappaAppTest(pytest.Item):
                     # allow the user to supply a zappa override. This can be a version or a local path. Or even a fork, if that ever exists.
                     logger.debug("Installing overridden Zappa: {}".format(ENV_CONFIG['zappa_override']))
                     ret, _, _ = self._venv_cmd(
-                        "pip", ["install", "--upgrade", "--no-deps", "--force-reinstall", "--ignore-installed", ENV_CONFIG['zappa_override']], check=True
+                        "pip", ["uninstall", "-y", "zappa"], check=True
+                    )
+                    ret, _, _ = self._venv_cmd(
+                        "pip", ["install", "--no-cache-dir", "--upgrade", "--no-deps", "--force-reinstall", "--ignore-installed", ENV_CONFIG['zappa_override']], check=True
                     )
 
                 ret, _, _ = self._venv_cmd(
-                    "pip", ["install", "-r", requirements_txt_path], check=True
+                    "pip", ["install", "-r", requirements_txt_path, "--no-cache-dir"], check=True
                 )
 
                 template_file = os.path.join(
