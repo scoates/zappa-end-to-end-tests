@@ -64,6 +64,10 @@ class ZappaAppTest(pytest.Item):
         self.app_path = parent.app_path
 
     def _venv_cmd(self, cmd, params=[], as_json=False, check=False, extra_env={}):
+        extra_env.update({
+            'VIRTUAL_ENV': self.venv_dir,
+            'PATH': ':'.join([os.path.join(self.venv_dir, 'bin'), os.environ.get('PATH')]),
+        })
         return venv_cmd(self.venv_dir, cmd, params, as_json, check, extra_env)
 
     def runtest(self):
