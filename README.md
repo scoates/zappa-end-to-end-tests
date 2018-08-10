@@ -25,7 +25,7 @@ These tests use [pytest](https://pytest.org/) (not nose like Zappa) and have a d
   - `zappa_settings.json.j2` a Jinja2 template that will be populated by the test suite (TODO: spec this out; TODO: spec stages if we implement multiple; TODO: actually do jinja)
   - functioning app code
   - a `run_tests` script that will run the tests. It receives the `$PY_VERSION` (either `27` or `36` for `2.7` and `3.6` respectively) in the environment.
-    - the `run_tests` script is responsible for dependencies. It usually needs  a `requirements.txt` for the app to test, or better: a `requirements-py27.txt' and `requirements-py36.txt' for Python 2.7 and 3.6, respectively. Add `zappa` to the `requirements.txt` but don't specify a version
+    - the `run_tests` script is responsible for dependencies. It usually needs  a `requirements.txt` for the app to test, or better: a `requirements-py27.txt` and `requirements-py36.txt` for Python 2.7 and 3.6, respectively. Add `zappa` to the `requirements.txt` but don't specify a version
     - the `run_tests` script also calls tests. Usually in `tests_27/` (or `tests_36/`) and `tests/` for version-independent tests
   - TODO: *optionally*: a Cloudformation stack to invoke *before* tests on the zappa app, located in `zappa_cfn.json`, `zappa_cfn.yaml` or the standard output from `zappa_cfn.py` (as a [Troposphere](https://github.com/cloudtools/troposphere) based script). (TODO: not yet implemented)
 
