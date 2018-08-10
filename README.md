@@ -1,5 +1,3 @@
-This is a work in progress; not ready for use yet. PRs welcome. (-:
-
 # End-to-end testing for Zappa
 
 This repository contains end-to-end tests. This tests *actual* deployments of Zappa, within a real AWS account. Running these tests costs money (in AWS usage fees).
