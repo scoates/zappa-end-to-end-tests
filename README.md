@@ -49,7 +49,7 @@ Setting certain environment variables will affect how tests run. For the values 
 - `ZAPPA_E2E_PYTHON_27_PATH` path to the Python 2.7 executable
 - `ZAPPA_E2E_PYTHON_36_PATH` path to the Python 3.6 executable
 - `ZAPPA_E2E_ZAPPA_OVERRIDE` use this string to install Zappa. Can be something like `Zappa==0.44.1` or a local path e.g. `/path/to/src/Zappa`
-- `ZAPPA_E2D_SLEEP_BETWEEN` sleep for this many seconds between tests; helps with the AWS API rate limit, but this was changed in mid-2018 so it might no longer be necessary
+- `ZAPPA_E2E_SLEEP_BETWEEN` sleep for this many seconds between tests; helps with the AWS API rate limit, but this was changed in mid-2018 so it might no longer be necessary
 
 ### Examples
 
