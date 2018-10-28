@@ -1,0 +1,16 @@
+[[source]]
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+jinja2 = "*"
+
+[dev-packages]
+pytest = "*"
+pytest-cov = "*"
+pylint = "*"
+black = "*"
+
+[pipenv]
+allow_prereleases = true
